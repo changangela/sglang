@@ -263,7 +263,9 @@ class PagedTokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
             return
 
         if self.is_not_in_free_group:
-            free_page_indices = torch.unique(free_index // self.page_size)
+            # Interior pages are full page_size-long runs in a contiguous slice,
+            # so a stride picks one slot per page without torch.unique's CPU-GPU sync.
+            free_page_indices = free_index[:: self.page_size] // self.page_size
             if self.need_sort:
                 self.release_pages = torch.cat((free_page_indices, self.release_pages))
             else:

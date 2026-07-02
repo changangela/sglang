@@ -350,7 +350,9 @@ class SWATokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
         self.full_to_swa_index_mapping[mapping_indices] = 0
 
     def _expand_to_full_pages(self, indices: torch.Tensor) -> torch.Tensor:
-        pages = torch.unique(indices // self.page_size)
+        # Stride over the contiguous slice's full page-runs to avoid torch.unique's
+        # CPU-GPU sync (see paged.py free()).
+        pages = indices[:: self.page_size] // self.page_size
         page_offsets = torch.arange(
             self.page_size, dtype=indices.dtype, device=indices.device
         )

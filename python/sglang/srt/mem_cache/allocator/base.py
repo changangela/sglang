@@ -72,8 +72,11 @@ class BaseTokenToKVPoolAllocator(abc.ABC):
 
     def free_group_end(self):
         self.is_not_in_free_group = True
-        if self.free_group:
-            self.free(torch.cat(self.free_group))
+        # Free slices individually: concatenating could place two short page-runs
+        # adjacent and break the stride dedup in free().
+        for free_index in self.free_group:
+            self.free(free_index)
+        self.free_group = []
 
     def merge_and_sort_free(self):
         if len(self.release_pages) > 0:
