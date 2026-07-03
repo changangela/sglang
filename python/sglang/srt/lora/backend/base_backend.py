@@ -266,16 +266,18 @@ class BaseLoRABackend(LoRABackendLmHeadMixing):
             adapter_enabled = None
             token_lora_mapping = None
 
-        num_tokens = (
-            sum(forward_batch.extend_seq_lens_cpu)
-            if forward_batch.forward_mode.is_extend()
-            else forward_batch.batch_size
-        )
-        max_len = (
-            max(forward_batch.extend_seq_lens_cpu)
-            if forward_batch.forward_mode.is_extend()
-            else 1
-        )
+        seq_lens_cpu = forward_batch.extend_seq_lens_cpu
+        if forward_batch.forward_mode.is_extend() and seq_lens_cpu is not None:
+            num_tokens = sum(seq_lens_cpu)
+            max_len = max(seq_lens_cpu)
+        elif forward_batch.forward_mode.is_extend():
+            # Spec-decode verify / CUDA-graph-capture batches run in extend mode but carry no
+            # extend_seq_lens_cpu; derive counts from the batch so MoE-LoRA prep does not crash.
+            num_tokens = forward_batch.input_ids.shape[0]
+            max_len = num_tokens // max(1, forward_batch.batch_size)
+        else:
+            num_tokens = forward_batch.batch_size
+            max_len = 1
 
         if (
             batch_info.req_seg_indptr is not None
